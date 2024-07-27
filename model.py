@@ -6,7 +6,6 @@ import uuid
 class Abit:
     uid: str
     avg_diploma_score: float
-    score: float
 
 
 @dataclasses.dataclass
@@ -14,6 +13,7 @@ class ProgramAbit:
     abit: Abit
     priority: int
     place: int
+    score: float
     are_originals_passed: bool
 
 
