@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 import os
@@ -7,6 +8,7 @@ import bs4
 
 IFMO_PROGRAMS_URL = "https://abitlk.itmo.ru/api/v1/rating/directions?degree=master"
 IFMO_PROGRAM_URL = "https://abit.itmo.ru/rating/master/budget/{program_id}"
+MAX_PARALLEL_DOWNLOADS = 10
 
 
 def cast_diploma_score(text: str) -> float:
@@ -15,6 +17,7 @@ def cast_diploma_score(text: str) -> float:
         if char.isdigit() or char == ".":
             filtered += char
     return float(filtered)
+
 
 def cast_are_originals_passed(text: str) -> bool:
     text = text.lower().strip()
@@ -89,6 +92,16 @@ def get_programs() -> list[dict]:
     return data["result"]["items"]
 
 
+async def dump_program_by_id(db_name: str, program_id: int, semaphore: asyncio.Semaphore) -> None:
+    async with semaphore:
+        print(f"Fetching {program_id}...")
+        program_abits = get_program_abits(program_id)
+        with open(f"{db_name}/{program_id}.json", "w") as abits_file:
+            json.dump(program_abits, abits_file)
+
+        print(f"Dumped {program_id} to {db_name}/{program_id}.json")
+
+
 def make_new_db(db_name: str):
     print(f"Making new database... {db_name}")
     os.mkdir(db_name)
@@ -97,17 +110,18 @@ def make_new_db(db_name: str):
         json.dump(known_programs, programs_file)
 
     print(f"Found {len(known_programs)} programs.")
-    n = 0
-    for program in known_programs:
-        n+= 1
-        uid = program["competitive_group_id"]
-        print(f"Fetching {uid}..., {n}/{len(known_programs)}")
-        program_abits = get_program_abits(uid)
-        with open(f"{db_name}/{uid}.json", "w") as abits_file:
-            json.dump(program_abits, abits_file)
+
+    semaphore = asyncio.Semaphore(MAX_PARALLEL_DOWNLOADS)
+    loop = asyncio.get_event_loop()
+    tasks = [
+        dump_program_by_id(db_name, program["competitive_group_id"], semaphore)
+        for program in known_programs
+    ]
+    loop.run_until_complete(asyncio.gather(*tasks))
+
 
 
 if __name__ == "__main__":
     now = int(datetime.datetime.utcnow().timestamp())
-    db_name = f"database__{now}.json"
+    db_name = f"database__{now}"
     make_new_db(db_name)

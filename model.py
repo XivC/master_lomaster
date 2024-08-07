@@ -16,6 +16,18 @@ class ProgramAbit:
     score: float
     are_originals_passed: bool
 
+    def __gt__(self, other):
+        return self.place > other.place
+
+    def __ge__(self, other):
+        return self.place >= other.place
+
+    def __lt__(self, other):
+        return self.place < other.place
+
+    def __le__(self, other):
+        return self.place <= other.place
+
 
 @dataclasses.dataclass
 class Program:
